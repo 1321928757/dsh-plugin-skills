@@ -1,0 +1,21 @@
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Temporary and generated files
+*.tmp
+*.log
+*.bak
+
+# Node/package manager artifacts
+node_modules/
+.pnpm-store/
+.npm/
+
+# Local environment files
+.env
+.env.*
+!.env.example
