@@ -1,69 +1,134 @@
 # DSH Plugin Skills
 
-面向 DeepSeek Harness（DSH）插件开发的社区维护 skill 集合。
+English | [简体中文](README.zh-CN.md)
 
-这套 skills 覆盖插件从设计、实现、文档编写到发布准备的常见工作流，适合希望开发或维护 DSH Web/profile bundle 插件的开发者。
+A community-maintained collection of reusable skills for building, designing, documenting, and publishing [DeepSeek Harness (DSH)](https://github.com/deepseek-ai) plugins.
 
-> 本项目是非官方的社区项目，不代表 DeepSeek Harness 官方立场。
+> This is an unofficial community project. It is not produced, endorsed, or maintained by DeepSeek Harness.
+
+## What this repository provides
+
+This repository contains instruction-oriented skills rather than an executable DSH plugin. Each skill gives an agent a focused workflow, implementation constraints, reusable templates, and validation guidance.
+
+The collection follows a plugin's practical delivery path:
+
+```text
+Plan and build  →  Design the Web UI  →  Document and publish
+      │                    │                    │
+      └─ authoring ────────┴─ ui ───────────────┴─ readme
+```
 
 ## Included skills
 
-| Skill | 用途 |
-| --- | --- |
-| [`dsh-plugin-authoring`](skill/dsh-plugin-authoring/) | 从 0 到 1 创建、打包、验证和发布 DSH 插件 |
-| [`dsh-plugin-ui`](skill/dsh-plugin-ui/) | 设计、实现和验收 DSH Web 插件 UI |
-| [`dsh-plugin-readme`](skill/dsh-plugin-readme/) | 编写和维护插件 README、截图及发布文档 |
+| Skill | Use it when you need to | Main coverage |
+| --- | --- | --- |
+| [`dsh-plugin-authoring`](skill/dsh-plugin-authoring/) | create or ship a DSH plugin | profile bundles, `package.json`, `cordis.patch.yml`, Host/Client halves, Typert or HTTP channels, local verification, versioning, GitHub and marketplace preparation |
+| [`dsh-plugin-ui`](skill/dsh-plugin-ui/) | design, implement, review, or refactor a DSH Web UI | Slots, runtime contracts, DSH theme tokens, layout and density, responsive behavior, accessibility, async states, lifecycle cleanup, and browser acceptance |
+| [`dsh-plugin-readme`](skill/dsh-plugin-readme/) | write or maintain plugin documentation | evidence-first README writing, bilingual parity, installation and troubleshooting, security boundaries, screenshots, `screenshots.json`, package files, and release validation |
+
+The skills are independent, but they work best together for a complete plugin project.
+
+## Which skill should I use?
+
+### Starting a new plugin
+
+Use [`dsh-plugin-authoring`](skill/dsh-plugin-authoring/) first. It helps you choose between a temporary dynamic Cordis plugin and a publishable profile bundle, then covers the repository skeleton and runtime integration path.
+
+### Building a Web interface
+
+Add [`dsh-plugin-ui`](skill/dsh-plugin-ui/) whenever the plugin has settings, conversation surfaces, sidebar integration, dashboards, overlays, or other browser UI. It is especially useful before writing Slot registration or custom CSS because it requires checking the current host contract rather than relying on copied examples.
+
+### Preparing documentation or a release
+
+Add [`dsh-plugin-readme`](skill/dsh-plugin-readme/) when the plugin needs a README, screenshots, security disclosure, compatibility notes, or marketplace submission material. It keeps user-facing claims tied to source and validation evidence.
+
+### A typical combined workflow
+
+```text
+1. dsh-plugin-authoring  — choose the plugin shape and build the runtime skeleton
+2. dsh-plugin-ui         — implement and verify the browser experience, if applicable
+3. dsh-plugin-readme     — document installation, usage, limits, and release evidence
+```
 
 ## Installation
 
-将需要的 skill 目录复制到你的 DSH skills 目录。例如：
+Clone the repository, then copy the skill directories you need into the DSH user skill directory. The following PowerShell example installs all three:
 
 ```powershell
+git clone https://github.com/<owner>/dsh-plugin-skills.git
+cd dsh-plugin-skills
+
 $DshSkills = Join-Path $HOME '.dsh\skills'
+New-Item -ItemType Directory -Path $DshSkills -Force | Out-Null
+
 Copy-Item .\skill\dsh-plugin-authoring $DshSkills -Recurse -Force
 Copy-Item .\skill\dsh-plugin-ui $DshSkills -Recurse -Force
 Copy-Item .\skill\dsh-plugin-readme $DshSkills -Recurse -Force
 ```
 
-如果只需要其中一个 skill，只复制对应目录即可。
-
-也可以直接克隆本仓库后按需使用：
+Replace `<owner>` with the GitHub account that owns the repository after it is published. To install only one skill, copy only its directory. For example:
 
 ```powershell
-git clone https://github.com/<owner>/dsh-plugin-skills.git
+Copy-Item .\skill\dsh-plugin-ui (Join-Path $DshSkills 'dsh-plugin-ui') -Recurse -Force
 ```
 
-将命令中的 `<owner>` 替换为实际 GitHub 用户名后再执行。
-
-## Recommended usage
-
-- 开始创建或发布插件：使用 `dsh-plugin-authoring`。
-- 涉及 Web 界面：同时使用 `dsh-plugin-ui`。
-- 编写 README、截图或上架材料：同时使用 `dsh-plugin-readme`。
-
-这些 skills 可以单独使用，也可以组合使用。`SKILL.md` 是每个 skill 的入口；其中引用的 `templates/` 和 `references/` 文件按任务需要读取。
+After copying, invoke the skill by its directory name in an Agent environment that supports DSH skills. If the current session has already catalogued its skills, start a new session or use the host's skill refresh mechanism before expecting the new copy to appear.
 
 ## Repository layout
 
 ```text
-skill/
-├── dsh-plugin-authoring/
-│   ├── SKILL.md
-│   ├── templates/
-│   └── references/
-├── dsh-plugin-ui/
-│   └── SKILL.md
-└── dsh-plugin-readme/
-    └── SKILL.md
+.
+├── README.md
+├── README.zh-CN.md
+├── LICENSE
+├── CONTRIBUTING.md
+├── CHANGELOG.md
+└── skill/
+    ├── dsh-plugin-authoring/
+    │   ├── SKILL.md
+    │   ├── references/
+    │   │   └── publish-runbook.md
+    │   └── templates/
+    │       ├── client.js
+    │       ├── cordis.patch.yml
+    │       ├── install.ps1
+    │       ├── package.json
+    │       └── typert.host.js
+    ├── dsh-plugin-readme/
+    │   └── SKILL.md
+    └── dsh-plugin-ui/
+        └── SKILL.md
 ```
 
-## Scope and maintenance
+`SKILL.md` is the entry point for every skill. Additional files are supporting material and should be read when the entry point refers to them; they are not separate skills.
 
-- 内容以 DSH 实际运行时契约、开源插件实践和本地验证结果为依据。
-- 涉及版本、Slot、Service、主题令牌或发布平台的内容应以当前环境和目标平台为准。
-- 文档中的示例路径、仓库地址和版本号可能需要替换后才能使用。
-- 欢迎提交 Issue 或 Pull Request 来修正文档、补充案例和更新兼容性说明。
+## Working principles
+
+- **Evidence before claims.** Check the target plugin's source, manifests, runtime contracts, tests, and actual package contents before making specific promises.
+- **Host contract before implementation.** Slot names, services, primitives, theme tokens, and wire shapes can change; inspect the current host instead of treating an old example as authoritative.
+- **Security boundaries stay explicit.** Loopback fences, write permissions, credential handling, result limits, and parser limitations should be documented as implementation boundaries, not absolute guarantees.
+- **Lifecycle matters.** Styles, listeners, timers, subscriptions, routes, and Slot registrations must have a disposer or Fiber-owned cleanup path.
+- **User-visible states are part of the feature.** Loading, empty, error, readonly, disabled, saving, success, narrow layouts, keyboard paths, and reduced motion need deliberate handling.
+- **Community, not official.** DSH compatibility and publishing rules should be described conservatively and re-checked when the host or target platform changes.
+
+## Scope and compatibility
+
+These skills are guidance, not a substitute for the current DSH runtime contract or the target plugin's tests. Examples may contain placeholder package names, paths, versions, and repository owners; replace them with values verified for your project.
+
+The skills currently focus on DSH Web/profile-bundle plugin work. A future skill can be added for testing, debugging, security review, or other areas when it has a clear scope and reusable guidance.
+
+## Contributing
+
+Issues and pull requests are welcome for corrections, new examples, compatibility updates, and reusable templates. Before submitting a change:
+
+1. Keep each skill focused on its declared responsibility.
+2. Keep English and Chinese README facts aligned when changing repository-level documentation.
+3. Verify commands, paths, links, and DSH-specific claims against an available source or runtime observation.
+4. Do not commit credentials, tokens, private database information, generated local state, or machine-specific configuration.
+5. Do not present community practice as an official DSH guarantee.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution checklist.
 
 ## License
 
-本仓库内容采用 MIT License，详见 [`LICENSE`](LICENSE)。
+The contents of this repository are available under the [MIT License](LICENSE).
