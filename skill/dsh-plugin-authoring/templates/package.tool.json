@@ -1,7 +1,7 @@
 {
-  "name": "dsh-my-plugin",
+  "name": "dsh-my-tool-plugin",
   "version": "<plugin-version>",
-  "description": "<Host-only profile bundle description>",
+  "description": "<Host Tool plugin description>",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -26,14 +26,12 @@
   ],
   "keywords": ["deepseek-harness", "dsh", "dsh-plugin"],
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/<owner>/dsh-my-plugin.git"
-  },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1"
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1"
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
   }
 }

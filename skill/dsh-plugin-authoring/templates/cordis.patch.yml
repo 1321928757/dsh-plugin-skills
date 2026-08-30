@@ -1,5 +1,21 @@
-# 插件的 bundle 补丁（语义见 SKILL.md §2 / dsh-app-boot applyEntryPatches）：
-# - insert 的值是可多个条目的数组；不带 id 追加到顶层，带 id 且目标是 group 则追加进其 config；
-# - 非 insert 补丁：id 必填 + 可选 name 校验 + 其余字段（如 disabled:true）覆盖目标条目；没有 merge；
-# - 补丁按顺序生效；未匹配到行的补丁警告跳过（--dump-config 的 # == 注释可见层归属）。
-- insert: [{id: dsh-my-plugin, name: dsh-my-plugin}]
+# Profile-bundle patch; the package must declare dsh.bundle.patch for this layer.
+# The top level is an array. Row order is configuration-layer order, not Service
+# activation order; Cordis/Loader dependency waiting controls activation.
+#
+# - insert:
+#     - id: my-plugin
+#       name: dsh-my-plugin
+#
+# Insert into an existing group (the target id is the group; insert is an array):
+# - id: web-app
+#   insert:
+#     - id: my-plugin
+#       name: dsh-my-plugin
+#
+# Override an existing row (whole fields are replaced; no deep merge):
+# - id: my-plugin
+#   name: dsh-my-plugin
+#   disabled: true
+- insert:
+    - id: my-plugin
+      name: dsh-my-plugin
