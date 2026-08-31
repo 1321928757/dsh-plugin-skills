@@ -23,7 +23,7 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 - 消息操作按钮：`conversation.chat.assistant-actions`
 - 输入栏按钮、浮层和命令面板：`conversation.input.*`
 - 壳层通知和 Toast：`shell.overlay`
-- better-sidebar 注册的 Tab、文件查看器、自由窗口和侧栏设置
+- 宿主侧栏扩展服务注册的 Tab、文件查看器、自由窗口和侧栏设置
 - 数据密集型 dashboard、列表、时间线、图表、诊断页
 - 设置、确认、预览、图片 lightbox、进度和错误反馈
 
@@ -35,7 +35,7 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 | --- | --- |
 | 发布版 profile bundle | 通常是 TS/TSX + tsdown + CSS/CSS Modules；客户端由 `exports["./client"]` 交给 DSH Web 加载 |
 | 动态 Cordis Plugin | 客户端代码必须是运行时支持的 plain JavaScript；使用 `React.createElement`，不能使用 import、TypeScript、JSX 或假定存在的第三方包 |
-| better-sidebar 消费插件 | 优先使用 `ctx.betterSidebar` 公开服务和注册表；不要 value-import better-sidebar 内部模块 |
+| 宿主扩展服务的消费插件 | 只使用宿主公开的服务和注册表；不要 value-import 另一个插件的内部模块 |
 
 不要把 DSH Web 当作普通独立 React 应用。插件 UI 必须通过已声明的 Slot、官方 primitives 或公开服务挂载；不要自行启动另一个 Web 应用覆盖宿主页面。
 
@@ -52,107 +52,45 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 
 ---
 
-## 2. 参考实现提炼：复用优点，不复制缺陷
+## 2. 独立设计原则：先约束，再表达
 
-本规范基于以下本地参考实现归纳。它们是设计证据，不是逐像素模板。
+本 skill 不依赖任何特定插件、仓库或本地实现。下面的规则是可迁移的 UI 设计与工程原则；它们描述“应该验证什么”和“如何做出取舍”，而不是要求复制某个项目的界面。
 
-### 2.1 `dsh-notify-center`
+### 2.1 先确认事实，再选择方案
 
-证据：
+实现前只依赖当前目标宿主能够确认的事实：
 
-- `src/client/index.tsx`：客户端入口只负责样式注入、生命周期 effect、Slot 注册和 controller 注入。
-- `src/client/SettingsSection.tsx`：使用 `useSyncExternalStore`，明确区分 loading、unavailable、readonly、saving、success、error。
-- `src/client/styles.ts`：设置页采用“标题说明 → 分组 panel → sticky 保存栏”。
+- 当前可用的 Slot、Service、primitive、主题令牌和组件 props；
+- 插件实际承担的用户任务、数据来源和生命周期；
+- 目标容器的宽度、滚动边界、权限状态和可用的浏览器能力；
+- 目标插件自己的代码、测试、依赖和兼容性声明。
 
-值得复用：
+如果某个名称、接口或视觉 token 无法从当前宿主契约、目标插件代码或实际运行验证中确认，就把它当作未知项处理：先探测、提供降级，或删除该假设。不要因为某个旧示例“看起来能用”就将其写入实现。
 
-- 设置页面按任务分组，而不是把所有字段放在一张无层次的表里。
-- `bg-layer-1/3`、`border-l2`、`label-primary/secondary/tertiary` 与状态令牌形成稳定层级。
-- secret 只显示“已配置”元数据，绝不把 secret 回传到浏览器。
-- 保存按钮、错误提示、只读提示和成功反馈都是显式状态。
-- `ctx.effect` 回收插件拥有的 style。
+### 2.2 可迁移的 UI 取舍
 
-不要复制：
+- 设置页面按用户任务分组，每组回答一个问题；
+- 官方交互组件优先承担按钮、菜单、弹窗、提示和消息等宿主 chrome，插件 CSS 主要处理布局与领域内容；
+- 异步界面保留已有数据，显式表达 busy、进度、错误和 retry；
+- 复杂诊断默认折叠但保留摘要，避免首屏被实现细节占满；
+- 图片和异步区域预留尺寸，避免布局跳动；
+- 数据图形同时提供文本、表格或摘要，让精确值不依赖 hover；
+- 不可信 projection、日志和 RPC 结果在边界验证，单条坏记录不能击穿整个视图；
+- 资源释放绑定到真实生命周期：组件卸载、Tab 关闭和插件停止不能混为一谈；
+- 只在确实拥有布局集成责任时触碰宿主 DOM，其余插件使用公开 Slot 和服务。
 
-- CSS 压缩成难以审查的单行文件。
-- 版本号、包版本和插件 manifest 不一致。
-- 普通按钮缺少统一的 `:focus-visible` 和 `active` 视觉。
-- 主按钮直接写 `#fff`、状态背景直接写 rgba 而没有主题化降级。
-- 输入框在每次 change 时立即 clamp/回退，打断用户输入过程。
-- 用数组 index 作为动态规则的 React key。
+### 2.3 明确拒绝的做法
 
-### 2.2 `dsh-market`
-
-证据：
-
-- `src/client/index.ts`：优先使用官方 `Button`、`Menu`、`Modal`、`Tooltip`、`DisclosureRow`、`Toast` 和 SVG icons，并对旧宿主做 primitives feature gate。
-- `src/client/Market.module.css`：使用 sticky header、container queries、固定图片尺寸、masonry/flex columns 和 `prefers-reduced-motion`。
-- `src/client/OperationsPanel.tsx`：危险冲突操作先展示后果，再提供 keep/swap 选择。
-
-值得复用：
-
-- 宿主提供的交互 chrome 优先交给官方 primitives；插件 CSS 只负责布局、专属卡片和少量特色表面。
-- 嵌入 settings 时优先使用 `@container`，不要只依赖 viewport media query。
-- 异步页面保留旧数据，配合 busy、进度、就地错误和 retry。
-- 复杂诊断默认折叠，但保留摘要；子面板可以懒加载。
-- 图片有固定宽高或 aspect-ratio，避免加载造成 CLS。
-- 危险操作显示真实后果，并提供 Escape、Cancel、outside click 等出口。
-
-不要复制：
-
-- `⚠`、`⚠️` 等 emoji 警告图标；使用一致的 SVG icon family。
-- 小于关键触控目标的 36px lightbox close、过窄的文本按钮和 drag handle。
-- 只依赖 placeholder 的搜索和表单输入。
-- 自定义 fullscreen 使用固定 `100vh` 而没有考虑动态视口和 safe area。
-- 自定义 lightbox 没有完整的 dialog 语义、焦点进入、焦点捕获和焦点恢复。
-- 过多硬编码 `rgba`、白色文字和 z-index；自定义浮层应尽量消费宿主 token 和 primitive。
-
-### 2.3 `dsh-context`
-
-证据：
-
-- `src/client/index.ts`：注册 `conversation.view`、assistant action、input overlay 和 keyed settings card。
-- `src/client/styles.css`：用 DSH token 构建高密度 dashboard，卡片、统计格、趋势图、事件列表和 browser detail 共享视觉语言。
-- `components/contextModal.tsx`、`images.tsx`、`errorBoundary.tsx`：有 Escape、焦点恢复、图片 retry 和 ErrorBoundary。
-
-值得复用：
-
-- 数据图形与可读数字分离：SVG/Canvas 负责形状，HTML/表格负责精确数值。
-- hover 联动应服务于真实关系，例如 legend、bar、detail row 之间共享选中语义。
-- 数据密集视图使用 `min-width: 0`、ellipsis、`overflow-wrap:anywhere`、tabular figures 和受控滚动。
-- 复杂数据来自不可信 projection/log 时，在边界重新证明形状；单条坏记录不能白屏。
-- 视图级 ErrorBoundary 提供 retry，而不是让宿主 Slot renderer 被错误击穿。
-
-不要复制：
-
-- hover-only tooltip；重要信息必须在键盘、触摸和读屏下有等价路径。
-- 没有 reduced-motion 的 pulse、shimmer 和图表动画。
-- 图表完全 `aria-hidden` 且没有文本摘要或 data table。
-- 固定的 320px nested scroll、过密 11px 文本和没有明确窄屏降级的多列布局。
-- 大量全局 class 集中在一份超大 CSS，导致模块边界和组件状态难以维护。
-
-### 2.4 `DSH-better-sidebar`
-
-证据：
-
-- `src/client/sidebar.module.css`：主面板使用 flat surface、hairline border、`layer-1`，不使用随机阴影。
-- `src/client/layout.css`：面板通过布局占位挤压 conversation center，而不是简单覆盖内容。
-- `src/client/SideCardSection.module.css`：设置页复刻 DSH PluginCard、settings-row 和声明式 inventory card。
-- `src/client/SideChatView.module.css`、`SubagentView.module.css`：使用 DSH 字体角色、motion token、focus-visible 和 reduced-motion。
-
-值得复用：
-
-- 主题令牌、字体令牌和 motion token 贯穿所有组件。
-- workbench 的每一层都明确 `flex: 1`、`min-width: 0`、`min-height: 0` 和滚动边界。
-- enabled/disabled、active/hover/focus 用不同状态层表达；开关使用真实 checkbox，再绘制视觉 track/thumb。
-- 注册表驱动 tabs、viewers 和 settings，避免 UI 与硬编码清单失同步。
-- 重依赖按 chunk 懒加载；组件卸载不等于 tab 关闭，资源释放要挂在正确的生命周期。
-
-谨慎复用：
-
-- `#root`、`:has()`、`body[data-*]` 和宿主 DOM 路径耦合只适用于拥有布局集成责任的特殊插件。
-- 裸 div 拖拽把手、不可键盘调整的 resize strip 和不可聚焦 tab 不是普通插件的默认做法。
-- disaster/fail bar 中的硬编码颜色只能是最后一道诊断兜底，不应成为正常 UI 组件。
+- 依赖 hover 才能获得重要信息；
+- 用 emoji 代替结构性图标、状态图标或警告图标；
+- 只依赖 placeholder 的表单输入；
+- 使用固定 `100vh`、固定嵌套滚动或固定桌面双栏冒充响应式设计；
+- 把图表完全标记为 `aria-hidden`，却没有文本摘要或数据表；
+- 用全局 selector、宿主 DOM 路径或猜测的 z-index 污染宿主；
+- 使用硬编码独立调色板、随机强阴影、过度渐变或玻璃拟态替代主题契约；
+- 让输入值在每次 change 时强制 clamp 或回退，打断用户完成编辑；
+- 使用数组 index 作为动态列表的 React key；
+- 只显示技术 stack、只显示 spinner，或在错误后没有恢复路径。
 
 ---
 
@@ -185,7 +123,7 @@ Signature: 一个与插件领域相关、可解释且克制的记忆点
 4. 检查当前 DSH 版本的 client inject 和兼容性要求。
 5. 记录“必须存在”的硬依赖和“存在则启用”的可选能力。
 
-不要把本地参考插件的旧 Slot 名称或旧 props 当作当前运行时事实。
+不要把旧文档、旧版本示例或其他项目的 Slot 名称和 props 当作当前运行时事实。
 
 ### Step 3：写 4–6 个视觉决定
 
@@ -270,7 +208,7 @@ DSH host tokens  →  plugin semantic aliases  →  component state tokens
 
 ### 4.2 常用 DSH token 目录
 
-下面是参考插件反复消费的 token。它不是跨所有 DSH 版本的硬编码保证；实际开发前必须以当前运行时 Inspect 和宿主 CSS 为准。
+下面是常见的语义 token 角色。它们不是跨所有 DSH 版本的硬编码保证；实际开发前必须以当前运行时 Inspect 和宿主 CSS 为准。
 
 | 语义 | 优先 token |
 | --- | --- |
@@ -370,7 +308,7 @@ fallback 只放在插件边界、且应是接近 DSH light baseline 的兜底；
 - 页面 section gap：14–16px
 - 页面底部安全 padding：至少 24–32px；有 sticky footer 时额外预留其高度
 
-参考插件共识不是“越宽越高级”：
+嵌入式 DSH 界面的共识不是“越宽越高级”：
 
 - settings section 常见 max-width：760–920px
 - dashboard card gap：10–14px
@@ -923,38 +861,7 @@ pnpm pack
 
 ---
 
-## 13. AI 开发提示词模板
-
-后续让 AI 开发 DSH 插件 UI 时，可以附加以下约束：
-
-```text
-你正在为 DeepSeek Harness Web 开发插件 UI。
-
-先确认：
-1. UI 挂载在哪个 DSH Slot，Slot contract 和 props 是什么；
-2. 当前宿主可用的 primitives、locale、theme tokens 和版本兼容性；
-3. 页面唯一任务、density、响应式容器和 primary action；
-4. 亮/暗主题下的 surface、text、border、state token 映射。
-
-实现要求：
-- 先输出 brief、ASCII wireframe、token mapping 和状态矩阵，再写 UI；
-- 优先使用 DSH 官方 primitives，CSS 只负责插件布局和专属内容；
-- 所有 class 使用插件前缀或 CSS Modules；不得修改宿主全局样式；
-- 所有颜色消费 --dsw-* / --ds-* token，color-mix 提供 fallback；
-- 使用 font: inherit 或 DSH font token，数字使用 tabular figures；
-- 使用真实 button/form/label/input/details/dialog 语义；icon-only 控件必须有 aria-label；
-- loading/error/empty/readonly/disabled/success 都必须有可见和可恢复状态；
-- 支持键盘、focus-visible、Escape、reduced-motion 和窄容器；
-- 不用 emoji 作为图标，不用 placeholder 代替 label，不用 hover 作为唯一信息入口；
-- 保留异步旧数据和未保存 draft；不可信数据逐项解析，避免白屏；
-- 最后给出亮色、暗色、窄屏、键盘和真实 DSH Web 验收清单。
-
-不要复制参考插件的硬编码颜色、全局 DOM 耦合、emoji、hover-only tooltip、固定 100vh 或缺失焦点管理等缺陷。
-```
-
----
-
-## 14. 最终质量门槛
+## 13. 最终质量门槛
 
 一个 DSH 插件 UI 只有同时满足以下条件才算完成：
 
