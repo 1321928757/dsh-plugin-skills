@@ -23,7 +23,7 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 - 消息操作按钮：`conversation.chat.assistant-actions`
 - 输入栏按钮、浮层和命令面板：`conversation.input.*`
 - 壳层通知和 Toast：`shell.overlay`
-- 宿主侧栏扩展服务注册的 Tab、文件查看器、自由窗口和侧栏设置
+- better-sidebar 注册的 Tab、文件查看器、自由窗口和侧栏设置
 - 数据密集型 dashboard、列表、时间线、图表、诊断页
 - 设置、确认、预览、图片 lightbox、进度和错误反馈
 
@@ -35,7 +35,7 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 | --- | --- |
 | 发布版 profile bundle | 通常是 TS/TSX + tsdown + CSS/CSS Modules；客户端由 `exports["./client"]` 交给 DSH Web 加载 |
 | 动态 Cordis Plugin | 客户端代码必须是运行时支持的 plain JavaScript；使用 `React.createElement`，不能使用 import、TypeScript、JSX 或假定存在的第三方包 |
-| 宿主扩展服务的消费插件 | 只使用宿主公开的服务和注册表；不要 value-import 另一个插件的内部模块 |
+| better-sidebar 消费插件 | 优先使用 `ctx.betterSidebar` 公开服务和注册表；不要 value-import better-sidebar 内部模块 |
 
 不要把 DSH Web 当作普通独立 React 应用。插件 UI 必须通过已声明的 Slot、官方 primitives 或公开服务挂载；不要自行启动另一个 Web 应用覆盖宿主页面。
 
@@ -52,45 +52,140 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 
 ---
 
-## 2. 独立设计原则：先约束，再表达
+## 2. 参考实现提炼：复用优点，不复制缺陷
 
-本 skill 不依赖任何特定插件、仓库或本地实现。下面的规则是可迁移的 UI 设计与工程原则；它们描述“应该验证什么”和“如何做出取舍”，而不是要求复制某个项目的界面。
+本规范基于以下本地参考实现归纳。它们是设计证据，不是逐像素模板。
 
-### 2.1 先确认事实，再选择方案
+### 2.1 `dsh-notify-center`
 
-实现前只依赖当前目标宿主能够确认的事实：
+证据：
 
-- 当前可用的 Slot、Service、primitive、主题令牌和组件 props；
-- 插件实际承担的用户任务、数据来源和生命周期；
-- 目标容器的宽度、滚动边界、权限状态和可用的浏览器能力；
-- 目标插件自己的代码、测试、依赖和兼容性声明。
+- `src/client/index.tsx`：客户端入口只负责样式注入、生命周期 effect、Slot 注册和 controller 注入。
+- `src/client/SettingsSection.tsx`：使用 `useSyncExternalStore`，明确区分 loading、unavailable、readonly、saving、success、error。
+- `src/client/styles.ts`：设置页采用“标题说明 → 分组 panel → sticky 保存栏”。
 
-如果某个名称、接口或视觉 token 无法从当前宿主契约、目标插件代码或实际运行验证中确认，就把它当作未知项处理：先探测、提供降级，或删除该假设。不要因为某个旧示例“看起来能用”就将其写入实现。
+值得复用：
 
-### 2.2 可迁移的 UI 取舍
+- 设置页面按任务分组，而不是把所有字段放在一张无层次的表里。
+- `bg-layer-1/3`、`border-l2`、`label-primary/secondary/tertiary` 与状态令牌形成稳定层级。
+- secret 只显示“已配置”元数据，绝不把 secret 回传到浏览器。
+- 保存按钮、错误提示、只读提示和成功反馈都是显式状态。
+- `ctx.effect` 回收插件拥有的 style。
 
-- 设置页面按用户任务分组，每组回答一个问题；
-- 官方交互组件优先承担按钮、菜单、弹窗、提示和消息等宿主 chrome，插件 CSS 主要处理布局与领域内容；
-- 异步界面保留已有数据，显式表达 busy、进度、错误和 retry；
-- 复杂诊断默认折叠但保留摘要，避免首屏被实现细节占满；
-- 图片和异步区域预留尺寸，避免布局跳动；
-- 数据图形同时提供文本、表格或摘要，让精确值不依赖 hover；
-- 不可信 projection、日志和 RPC 结果在边界验证，单条坏记录不能击穿整个视图；
-- 资源释放绑定到真实生命周期：组件卸载、Tab 关闭和插件停止不能混为一谈；
-- 只在确实拥有布局集成责任时触碰宿主 DOM，其余插件使用公开 Slot 和服务。
+不要复制：
 
-### 2.3 明确拒绝的做法
+- CSS 压缩成难以审查的单行文件。
+- 版本号、包版本和插件 manifest 不一致。
+- 普通按钮缺少统一的 `:focus-visible` 和 `active` 视觉。
+- 主按钮直接写 `#fff`、状态背景直接写 rgba 而没有主题化降级；这些值只能出现在语义 alias 的兼容 fallback。
+- 输入框在每次 change 时立即 clamp/回退，打断用户输入过程。
+- 用数组 index 作为动态规则的 React key。
 
-- 依赖 hover 才能获得重要信息；
-- 用 emoji 代替结构性图标、状态图标或警告图标；
-- 只依赖 placeholder 的表单输入；
-- 使用固定 `100vh`、固定嵌套滚动或固定桌面双栏冒充响应式设计；
-- 把图表完全标记为 `aria-hidden`，却没有文本摘要或数据表；
-- 用全局 selector、宿主 DOM 路径或猜测的 z-index 污染宿主；
-- 使用硬编码独立调色板、随机强阴影、过度渐变或玻璃拟态替代主题契约；
-- 让输入值在每次 change 时强制 clamp 或回退，打断用户完成编辑；
-- 使用数组 index 作为动态列表的 React key；
-- 只显示技术 stack、只显示 spinner，或在错误后没有恢复路径。
+### 2.2 `dsh-market`
+
+证据：
+
+- `src/client/index.ts`：优先使用官方 `Button`、`Menu`、`Modal`、`Tooltip`、`DisclosureRow`、`Toast` 和 SVG icons，并对旧宿主做 primitives feature gate。
+- `src/client/Market.module.css`：使用 sticky header、container queries、固定图片尺寸、masonry/flex columns 和 `prefers-reduced-motion`。
+- `src/client/OperationsPanel.tsx`：危险冲突操作先展示后果，再提供 keep/swap 选择。
+
+值得复用：
+
+- 宿主提供的交互 chrome 优先交给官方 primitives；插件 CSS 只负责布局、专属卡片和少量特色表面。
+- 嵌入 settings 时优先使用 `@container`，不要只依赖 viewport media query。
+- 异步页面保留旧数据，配合 busy、进度、就地错误和 retry。
+- 复杂诊断默认折叠，但保留摘要；子面板可以懒加载。
+- 图片有固定宽高或 aspect-ratio，避免加载造成 CLS。
+- 危险操作显示真实后果，并提供 Escape、Cancel、outside click 等出口。
+
+不要复制：
+
+- `⚠`、`⚠️` 等 emoji 警告图标；使用一致的 SVG icon family。
+- 小于关键触控目标的 36px lightbox close、过窄的文本按钮和 drag handle。
+- 只依赖 placeholder 的搜索和表单输入。
+- 自定义 fullscreen 固定使用 `100vh`，而没有优先使用 `dvh`、提供旧环境 fallback 或考虑动态视口和 safe area。
+- 自定义 lightbox 没有完整的 dialog 语义、焦点进入、焦点捕获和焦点恢复。
+- 过多硬编码 `rgba`、白色文字和 z-index；自定义浮层应尽量消费宿主 token 和 primitive。
+
+### 2.3 `dsh-context`
+
+证据：
+
+- `src/client/index.ts`：注册 `conversation.view`、assistant action、input overlay 和 keyed settings card。
+- `src/client/styles.css`：用 DSH token 构建高密度 dashboard，卡片、统计格、趋势图、事件列表和 browser detail 共享视觉语言。
+- `components/contextModal.tsx`、`images.tsx`、`errorBoundary.tsx`：有 Escape、焦点恢复、图片 retry 和 ErrorBoundary。
+
+值得复用：
+
+- 数据图形与可读数字分离：SVG/Canvas 负责形状，HTML/表格负责精确数值。
+- hover 联动应服务于真实关系，例如 legend、bar、detail row 之间共享选中语义。
+- 数据密集视图使用 `min-width: 0`、ellipsis、`overflow-wrap:anywhere`、tabular figures 和受控滚动。
+- 复杂数据来自不可信 projection/log 时，在边界重新证明形状；单条坏记录不能白屏。
+- 视图级 ErrorBoundary 提供 retry，而不是让宿主 Slot renderer 被错误击穿。
+
+不要复制：
+
+- hover-only tooltip；重要信息必须在键盘、触摸和读屏下有等价路径。
+- 没有 reduced-motion 的 pulse、shimmer 和图表动画。
+- 图表完全 `aria-hidden` 且没有文本摘要或 data table。
+- 固定的 320px nested scroll、过密 11px 文本和没有明确窄屏降级的多列布局。
+- 大量全局 class 集中在一份超大 CSS，导致模块边界和组件状态难以维护。
+
+### 2.4 `DSH-better-sidebar`
+
+证据：
+
+- `src/client/sidebar.module.css`：主面板使用 flat surface、hairline border、`layer-1`，不使用随机阴影。
+- `src/client/layout.css`：面板通过布局占位挤压 conversation center，而不是简单覆盖内容。
+- `src/client/SideCardSection.module.css`：设置页复刻 DSH PluginCard、settings-row 和声明式 inventory card。
+- `src/client/SideChatView.module.css`、`SubagentView.module.css`：使用 DSH 字体角色、motion token、focus-visible 和 reduced-motion。
+
+值得复用：
+
+- 主题令牌、字体令牌和 motion token 贯穿所有组件。
+- workbench 的每一层都明确 `flex: 1`、`min-width: 0`、`min-height: 0` 和滚动边界。
+- enabled/disabled、active/hover/focus 用不同状态层表达；开关使用真实 checkbox，再绘制视觉 track/thumb。
+- 注册表驱动 tabs、viewers 和 settings，避免 UI 与硬编码清单失同步。
+- 重依赖按 chunk 懒加载；组件卸载不等于 tab 关闭，资源释放要挂在正确的生命周期。
+
+谨慎复用：
+
+- `#root`、`:has()`、`body[data-*]` 和宿主 DOM 路径耦合只适用于拥有布局集成责任的特殊插件。
+- 裸 div 拖拽把手、不可键盘调整的 resize strip 和不可聚焦 tab 不是普通插件的默认做法。
+- disaster/fail bar 中的硬编码颜色只能是最后一道诊断兜底，不应成为正常 UI 组件。
+
+### 2.5 从近期实战提炼：先像 DSH，再像插件
+
+最近几轮 DSH 插件 UI 的有效改动，核心不是增加装饰，而是把插件从“独立网站”拉回宿主的视觉语法。以下规则可迁移到其他插件，但不要照抄 MySQL 插件的具体文案、颜色或尺寸：
+
+#### 2.5.1 先去除独立网站感
+
+- 默认沿用 DSH 的品牌色、surface、文字层级和边界令牌；不要用墨绿、深色渐变、独立调色板或大面积装饰背景制造“插件品牌”
+- 品牌色负责主要操作、链接、关键选择和 focus；绿色只表达真实成功/连接状态；橙色只表达风险/写权限警示；红色只表达错误、异常和危险动作
+- `state-*` 颜色不是装饰色：必须同时有文字、图标、形状或其他可感知语义，不能只靠颜色区分状态
+- 插件只保留一个克制、可解释的 signature，例如连接状态点、上下文摘要或状态时间线；不要用多套强调色、发光、渐变和阴影堆出“品牌感”
+- 复盘时做一次 hierarchy pass：如果每个卡片、按钮和列表项都在强调，先删除一个装饰或降低一层视觉权重，而不是继续加样式
+
+#### 2.5.2 按宿主上下文定义动作层级
+
+| 宿主场景 | 推荐表现 | 可迁移经验 |
+| --- | --- | --- |
+| 页面唯一主要动作 | brand fill 或官方 primary primitive | 设置页只保留一个主要提交动作，避免“添加/保存/测试”同时抢主色 |
+| 页面级但非主要动作 | outline / secondary | 入口动作保持可发现，但不与提交动作竞争 |
+| 卡片级辅助动作 | quiet / ghost / link | 测试、刷新、编辑等低风险动作降低边界和填充噪声 |
+| 输入栏会话控制 | borderless compact control，由外层承载 hover surface | 控件要像宿主 composer 的一部分，不要出现突兀的独立矩形按钮 |
+| 删除、替换、放弃 | text/destructive，确认时再提升权重 | 先说明真实后果，提供 Cancel/Escape，默认安全选项 |
+
+这不是“所有按钮都要无边框”：动作层级必须服从上下文、风险和唯一 primary action。页面提交、菜单项、输入栏控件和卡片操作应分别设计。
+
+#### 2.5.3 让状态归属清晰且布局稳定
+
+- 输入栏 compact control 的 hover/expanded surface 可以由 wrapper 承担，button 自身保持与 composer 连续的形状
+- `aria-expanded`、稳定状态 class 和 caret 方向必须同步；caret 不应因为某个数据状态而完全消失
+- busy/disabled 同时表达不可执行、降低强调和保留动作上下文；不要用 active scale/translate 造成文字或相邻控件跳动
+- 异步状态行预留稳定的最小高度；测试中、成功、失败切换时卡片不要上下抖动
+- CSS transition 列出具体属性（如 `background-color`、`border-color`、`color`、`box-shadow`、`transform`），不要使用 `transition: all`
+- selected/hover 默认优先低噪声 surface 和普通边界；品牌色留给关键选择、链接和 focus，不要让每个列表项都像主按钮
 
 ---
 
@@ -123,7 +218,7 @@ Signature: 一个与插件领域相关、可解释且克制的记忆点
 4. 检查当前 DSH 版本的 client inject 和兼容性要求。
 5. 记录“必须存在”的硬依赖和“存在则启用”的可选能力。
 
-不要把旧文档、旧版本示例或其他项目的 Slot 名称和 props 当作当前运行时事实。
+不要把本地参考插件的旧 Slot 名称或旧 props 当作当前运行时事实。
 
 ### Step 3：写 4–6 个视觉决定
 
@@ -208,7 +303,7 @@ DSH host tokens  →  plugin semantic aliases  →  component state tokens
 
 ### 4.2 常用 DSH token 目录
 
-下面是常见的语义 token 角色。它们不是跨所有 DSH 版本的硬编码保证；实际开发前必须以当前运行时 Inspect 和宿主 CSS 为准。
+下面是参考插件反复消费的 token。它不是跨所有 DSH 版本的硬编码保证；实际开发前必须以当前运行时 Inspect 和宿主 CSS 为准。
 
 | 语义 | 优先 token |
 | --- | --- |
@@ -225,10 +320,12 @@ DSH host tokens  →  plugin semantic aliases  →  component state tokens
 | 可见卡片边界 | `--dsw-alias-border-l2` |
 | hairline/divider | `--dsw-alias-border-l1`、`--dsw-alias-hairline` |
 | 更强边界/focus | `--dsw-alias-border-l4`、`--dsw-alias-label-dimmed` |
-| 品牌链接/强调 | `--dsw-alias-brand-primary` |
-| primary control | `--dsw-alias-button-primary-fill`、`--dsw-alias-state-business-primary` |
-| hover/active | `--dsw-alias-interactive-bg-hover`、`--dsw-alias-interactive-bg-active`、`--dsw-alias-interactive-bg-hover-accent` |
-| 成功/警告/错误 | `--dsw-alias-state-success-primary`、`--dsw-alias-state-warn-primary`、`--dsw-alias-state-error-primary` |
+| 品牌链接/关键强调/focus | `--dsw-alias-brand-primary` |
+| 页面主要动作 | 已确认的官方 primary primitive 或 `--dsw-alias-state-business-primary` |
+| 成功状态 | `--dsw-alias-state-success-primary` |
+| 警告/风险状态 | `--dsw-alias-state-warn-primary` |
+| 错误/危险状态 | `--dsw-alias-state-error-primary` |
+| hover/active/expanded | `--dsw-alias-interactive-bg-hover`、`--dsw-alias-interactive-bg-active`、`--dsw-alias-interactive-bg-hover-accent` |
 | danger 兼容别名 | `--dsw-alias-danger`，使用前确认当前宿主是否提供 |
 | 阴影 | `--dsw-shadow-lv1`、`--dsw-shadow-lv2`、`--dsw-shadow-lv3` |
 | 字体角色 | `--dsw-font-s-14`、`--dsw-font-xxs-12`、`--dsw-font-xxxs-11` 及 strong variants |
@@ -236,7 +333,29 @@ DSH host tokens  →  plugin semantic aliases  →  component state tokens
 | motion | `--ds-transition-duration-slow`、`--ds-ease-in-out` |
 | 宿主布局辅助 | `--dsh-content-font-delta`、`--dsh-scrollbar-width` |
 
-### 4.3 表面、边界和阴影
+### 4.3 语义角色与兼容性规则
+
+不要把“换成 token”理解成所有元素都使用品牌色。先为组件建立语义角色，再从当前运行时确认的 token 中选值：
+
+| 角色 | 推荐用法 |
+| --- | --- |
+| Brand | 主要操作、链接、关键选择和 focus；不负责表达所有成功状态 |
+| Success | 连接成功、保存成功、测试成功等真实成功结果 |
+| Warn | 写权限、风险提示和需要用户注意的状态 |
+| Error/Danger | 请求失败、连接异常、删除和其他危险动作 |
+| Primary text / secondary text / metadata | 正文、辅助说明、时间/来源等信息的层级 |
+| Hairline / visible border | 低噪声分隔线 / 能看见的卡片或控件边界 |
+| Interactive surface | hover、active、expanded 和 pressed 的背景反馈 |
+
+- selected 的表现由任务语义决定：普通列表优先使用低噪声 surface + 普通边界；品牌色用于关键选择、链接或 focus，不要让每个列表项都像 primary button。
+- fallback 只放在插件语义 alias 边界，例如 `--my-success` 或 `--my-surface`；组件规则消费 alias，不散落 raw hex/rgba。
+- `color-mix()` 只用于低强度 tint、状态底色和 focus 辅助，不作为主色来源。对不支持 `color-mix()` 的宿主提供接近 DSH baseline 的 fallback。
+- primary 填充按钮的前景色优先使用已确认的宿主 foreground token 或官方 primitive；不要把 `#fff` 当成跨主题正确答案。
+- 普通面板优先使用 `bg-layer-*`，菜单或真正脱离文档流的浮层才使用已确认的 menu token；不要把 sidebar 专用皮肤 token 当普通面板背景。
+- 透明或自定义 skin 下，验证 surface token 被覆盖、透明或缺失时，文字、边界和浮层仍可读。
+- 兼容旧宿主时，先确认 token/primitive 是否存在，再在插件语义 alias 边界提供 fallback；不要为了兼容把 fallback 提升为组件主色。
+
+### 4.4 表面、边界和阴影
 
 DSH Web 的典型语言是“层级由不同 surface + hairline border 表达”，不是每张卡都加阴影：
 
@@ -248,6 +367,8 @@ DSH Web 的典型语言是“层级由不同 surface + hairline border 表达”
 - `shadow-lv1`：轻微浮起的 sticky action 或 card hover。
 - `shadow-lv3`：modal、free window 等真正脱离文档流的浮层。
 - 普通 sidebar/workbench panel 默认 flat；不要同时堆叠高透明、blur、渐变和强阴影。
+- 输入栏、菜单等宿主 chrome 的紧凑控件可以使用约 28–32px 的视觉高度，但必须保留可见 focus、完整键盘路径和足够命中区；这不是对可用性要求的豁免。
+- settings 表单输入和主要操作优先使用更舒适的高度；不要为了追求“像 toolbar”而把设置表单压成 28px。
 
 推荐半径：
 
@@ -259,30 +380,31 @@ DSH Web 的典型语言是“层级由不同 surface + hairline border 表达”
 | 状态 chip/badge | 4–6px |
 | pill/圆形 icon control | `999px` 或 `50%` |
 
-### 4.4 `color-mix` 和 fallback
+### 4.5 `color-mix` 和 fallback
 
-混色只能用于低强度 tint、focus ring 和状态背景；必须考虑不支持 `color-mix()` 的 WebView：
+混色只能用于低强度 tint、focus ring 和状态背景；主色、正文和卡片 surface 应直接使用已确认的语义 token。fallback 只放在插件语义 alias 边界，不能把组件层写成一套平行调色板：
 
 ```css
+.my-plugin__root {
+  --my-success: var(--dsw-alias-state-success-primary);
+  --my-success-surface: var(--dsw-alias-bg-layer-2);
+}
+
 .my-plugin__status--success {
-  color: var(--dsw-alias-state-success-primary, #15803d);
-  background: rgba(22, 163, 74, .10);
+  color: var(--my-success);
+  background: var(--my-success-surface);
 }
 
 @supports (background: color-mix(in srgb, black, white)) {
   .my-plugin__status--success {
-    background: color-mix(
-      in srgb,
-      var(--dsw-alias-state-success-primary) 12%,
-      transparent
-    );
+    background: color-mix(in srgb, var(--my-success) 12%, transparent);
   }
 }
 ```
 
-fallback 只放在插件边界、且应是接近 DSH light baseline 的兜底；不能把 fallback 当作主设计系统。
+fallback 应接近 DSH light baseline，并且要在暗色、透明 skin 和高对比环境检查；不要把 `#fff`、固定 rgba 或 mix 后的插件颜色当作跨主题主设计。
 
-### 4.5 字体、数字与文案
+### 4.6 字体、数字与文案
 
 - 优先 `font: inherit`，让插件跟随宿主字号和用户偏好。
 - DSH 的 desktop UI 可采用 13–14px 的 compact body；长说明、错误、帮助文案不要低于可读下限。
@@ -307,10 +429,13 @@ fallback 只放在插件边界、且应是接近 DSH light baseline 的兜底；
 - 设置 group padding：16–20px
 - 页面 section gap：14–16px
 - 页面底部安全 padding：至少 24–32px；有 sticky footer 时额外预留其高度
+- 状态行和异步反馈预留稳定的最小高度，避免 loading/成功/失败切换造成卡片跳动
+- sticky footer 存在时，内容容器额外预留 footer 高度，确保最后一个字段能完整滚过操作栏
 
-嵌入式 DSH 界面的共识不是“越宽越高级”：
+参考插件共识不是“越宽越高级”：
 
 - settings section 常见 max-width：760–920px
+- 下拉面板/浮层宽度优先 `min(400px, calc(100vw - 32px))` 一类约束；嵌入式内容优先使用容器可用宽度，不把 desktop 宽度硬带入窄容器
 - dashboard card gap：10–14px
 - sidebar chrome：34–36px；icon control 的可视尺寸可为 28px，但触控/键盘命中区应更大
 - 关键操作触控目标：至少 44×44px；desktop compact 可使用 32–40px 视觉控件，但不要让用户只能点击 16–20px 的细线或字形
@@ -376,7 +501,7 @@ root column
 
 - 决策型 modal：标题、说明、可滚动内容、明确 Cancel/Confirm footer。
 - 纯预览型 lightbox：不要套用复杂决策 modal，但必须拥有 dialog 语义、close、Escape、焦点恢复。
-- 浮层宽度优先 `min(…px, calc(100vw - 32px))`，高度优先 `min(…vh, …px)`，移动端考虑 `dvh` 和 safe area。
+- 浮层宽度优先 `min(…px, calc(100vw - 32px))`，高度优先 `min(…dvh, …px)`，旧环境再提供 `vh` fallback；移动端考虑 safe area。
 - 优先使用官方 Modal/Menu/Tooltip primitive；自定义 z-index 前先确认宿主 overlay 层级。
 
 ### 5.4 响应式策略
@@ -405,8 +530,10 @@ DSH 插件通常被嵌入 settings dialog 或 sidebar，优先使用 container q
 - sticky header 必须和对应 scroll container 一起设计，不能让搜索栏和分类栏各自独立 sticky 后相互遮挡。
 - 动态折叠会改变上方高度时，必要时使用 `overflow-anchor: none`，但必须验证滚动不会丢失。
 - 图片声明 `width/height` 或 `aspect-ratio`；异步内容预留空间。
+- 浮层高度优先使用 `dvh`，并在旧环境提供 `vh` fallback；同时考虑 safe-area inset，不要把固定 `100vh` 当作通用实现。
 - 避免嵌套滚动；如果确实需要内部滚动，明确哪个区域负责滚动，并确保焦点元素可见。
 - 不动画 `width/height/top/left` 来制造装饰效果；布局变化优先 transform/opacity，拖拽时关闭 easing。
+- 状态切换若只需表达 hover/expanded/focus，优先改变 surface、border、color 或 box-shadow；contextual compact control 不要使用会推挤邻居的 active scale/translate。
 
 ---
 
@@ -495,6 +622,32 @@ Card
 | destructive confirmation | 明确后果、Cancel、Confirm | 默认安全选项，支持 Escape/outside click |
 
 状态优先级：`disabled > loading > active > focus > hover > default`。
+
+### 6.7 DSH 风格回归检查
+
+#### 输入栏与连接选择面板
+
+- 未选择、已选择、异常、切换中、展开和关闭都必须有稳定的视觉与 ARIA 状态。
+- 连接名、主机、数据库等长值允许截断，但完整信息仍要通过可访问 label、`title` 或可展开详情提供。
+- 搜索、关闭、选择、测试/重试、空数据和错误恢复都要能用键盘完成。
+- 普通 selected/hover 优先使用低噪声 surface + 普通边界；不要让每个列表项都抢走品牌强调。
+- 可点击主区域与测试、刷新等辅助操作分离，避免整张卡既选择又执行副作用。
+- sticky header/footer 的滚动边界、面板最大高度和 Escape/outside 关闭行为必须明确；不要让浮层遮挡输入栏或焦点元素。
+
+#### 设置页与表单
+
+- 每个 settings section 只有一个 primary action；添加、测试、编辑、取消和删除按 outline、quiet、link、destructive 分层。
+- 基本信息、范围、权限/安全等字段按用户任务分组；复杂风险选项通过 disclosure 渐进展开。
+- 表单保留 draft；保存中防重复提交，成功有 status，失败有原因和 retry，刷新失败不应无故清空已有数据。
+- 写权限、删除等高风险状态同时提供颜色、文案、图标/徽标和确认路径。
+- 取消编辑或关闭表单若会丢失未保存修改，先说明后果，并支持 Cancel/Escape 回退。
+
+#### 视觉和布局一致性
+
+- surface、border、radius、font、motion 和状态色应能回溯到 DSH token 或插件语义 alias；发现一处 raw hex/rgba 时，先判断它是否只是 alias 边界 fallback。
+- 页面级动作、卡片级动作和宿主 chrome 不共享同一套按钮样式；先检查动作层级，再检查颜色。
+- 状态反馈要保留上下文，不能靠 toast、spinner 或 active transform 掩盖布局变化；异步前后控件位置和卡片高度应尽量稳定。
+- 自定义 signature 最多一个，并且必须服务于插件对象；删掉渐变、发光或额外徽章后，任务层级仍应清楚。
 
 ---
 
@@ -639,7 +792,7 @@ Slot shell
 - 微交互通常 120–200ms，复杂进入/退出 150–300ms。
 - 入场 ease-out，退出更快；动画 transform/opacity，不动画 layout 尺寸。
 - loading shimmer、running pulse、chart reveal 都必须有意义且可中断。
-- `@media (prefers-reduced-motion: reduce)` 下关闭循环动画、缩短 transition，并去除装饰性 transform。
+- `@media (prefers-reduced-motion: reduce)` 下关闭循环动画、缩短 transition，并去除装饰性 transform；spinner 若仍用于表达进行中状态，必须保留等价的文字或 `aria-busy` 语义。
 - sticky、drag 和 scroll 状态不能因为动画而脱离用户指针或造成 CLS。
 
 示例：
@@ -650,11 +803,12 @@ Slot shell
     color 150ms ease,
     background-color 150ms ease,
     border-color 150ms ease,
-    box-shadow 150ms ease;
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .my-plugin__interactive:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline: 2px solid var(--my-focus, var(--dsw-alias-brand-primary));
   outline-offset: 2px;
 }
 
@@ -677,10 +831,24 @@ Slot shell
 1. **标出宿主边界**：哪些是 DSH 自带 header、sidebar、dialog chrome，哪些是插件拥有的区域。
 2. **提取层级**：背景层、卡片层、控件层、状态层、浮层层分别是什么。
 3. **提取可验证事实**：列数、对齐方式、主次标题字号关系、间距节奏、圆角、边框、阴影、动作位置、滚动边界。
-4. **匹配 DSH token**：把截图里的灰、蓝、绿、红映射到实际 DSH semantic token，不要直接复制截图 hex。
-5. **识别 signature**：保留一个与插件对象相关的视觉记忆点；删除无助于任务的渐变、玻璃、发光和装饰 icon。
-6. **还原状态**：询问或补齐 loading、empty、error、hover、focus、disabled、mobile 状态；效果图通常只展示 happy path。
-7. **实现后对照**：在亮色和暗色 DSH 页面截图，比较层级和密度，不只比较像素颜色。
+4. **匹配 DSH token**：把截图里的灰、蓝、绿、红映射到实际 DSH semantic token，不要直接复制截图 hex；先判断颜色属于 brand、success、warn 还是 error/danger。
+5. **识别层级与动作**：标出唯一 primary action，以及页面级、卡片级、输入栏级动作分别应使用的表现，不要因截图中颜色相同就复用同一按钮样式。
+6. **识别 signature**：保留一个与插件对象相关的视觉记忆点；删除无助于任务的渐变、玻璃、发光和装饰 icon。
+7. **还原状态**：询问或补齐 loading、empty、error、hover、focus、disabled、mobile 状态；效果图通常只展示 happy path。
+8. **实现后对照**：在亮色和暗色 DSH 页面截图，比较层级和密度，不只比较像素颜色。
+
+### 9.1 DSH 风格回归矩阵
+
+效果图或实现截图至少覆盖与组件真实任务对应的状态，不要只提交一个 happy path：
+
+| Surface | 最小回归状态 | 重点检查 |
+| --- | --- | --- |
+| settings | 已保存列表、添加/编辑表单、权限折叠、保存中、成功、失败 | 唯一 primary、分组层级、sticky footer 是否遮挡、draft 是否保留 |
+| composer | 无连接、已连接、picker 展开、切换中、异常 | borderless compact chrome、caret/`aria-expanded`、长名称截断、wrapper hover |
+| picker/menu | 搜索、选中、空数据、测试中、测试失败/重试、关闭 | 低噪声 selected surface、主区与副作用操作分离、键盘导航 |
+| conversation | 动态上下文、工具结果、空结果、失败结果 | 上下文与结果的阅读顺序、长内容滚动、错误恢复和数据语义 |
+
+每个关键 surface 至少在亮色和暗色主题验证一次；比较时优先看层级、边界、文字可读性、动作权重和布局稳定性，不要逐像素复制截图。
 
 如果效果图与 DSH 原生语言冲突，优先级为：
 
@@ -719,7 +887,11 @@ Slot shell
   width: 100%;
   min-width: 0;
   min-height: 0;
-  color: var(--dsw-alias-label-primary, #1f2328);
+  --my-text: var(--dsw-alias-label-primary, #1f2328);
+  --my-surface: var(--dsw-alias-bg-layer-1);
+  --my-border: var(--dsw-alias-border-l2);
+  --my-focus: var(--dsw-alias-brand-primary);
+  color: var(--my-text);
   font: var(--dsw-font-s-14, 14px/22px var(--ds-font-family-sans, system-ui, sans-serif));
 }
 
@@ -735,14 +907,14 @@ Slot shell
   gap: 12px;
   min-width: 0;
   padding: 14px 16px;
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border: 1px solid var(--my-border);
   border-radius: 10px;
-  background: var(--dsw-alias-bg-layer-1, #fff);
+  background: var(--my-surface);
 }
 
 .my-plugin__section-title {
   margin: 0;
-  color: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--my-text);
   font-size: 15px;
   line-height: 22px;
   font-weight: 600;
@@ -750,14 +922,14 @@ Slot shell
 
 .my-plugin__hint {
   margin: 0;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
   font-size: 12px;
   line-height: 18px;
 }
 
 .my-plugin__button:focus-visible,
 .my-plugin__input:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
+  outline: 2px solid var(--my-focus);
   outline-offset: 2px;
 }
 
@@ -821,10 +993,13 @@ Slot shell
 
 - [ ] Slot、Service、primitive、theme token 都来自当前 contract，而非猜测。
 - [ ] CSS class 有插件命名空间或 CSS Module；没有意外全局 selector。
-- [ ] 颜色、字体、边界、阴影、motion 都使用 DSH token 或局部语义 alias。
+- [ ] 颜色、字体、边界、阴影、motion 都使用 DSH token 或局部语义 alias；raw fallback 只出现在 alias 边界。
+- [ ] brand、success、warn、error/danger 的语义没有混用；selected/hover 没有默认过度使用品牌色。
+- [ ] 页面、卡片、输入栏三类动作没有误用同一套按钮层级。
 - [ ] 没有 emoji 结构图标；icon-only 控件有 `aria-label`。
 - [ ] 没有 placeholder-only input；错误和状态有语义关联。
 - [ ] 组件有 default/hover/focus/active/disabled/loading/error/empty 的适用状态。
+- [ ] expanded/selected/busy 等状态的视觉、ARIA 和 DOM 行为同步；异步状态不会造成卡片或相邻控件跳动。
 - [ ] 所有副作用通过 `ctx.effect`、官方 disposer 或 React cleanup 回收。
 - [ ] 动态数据在边界做形状验证；复杂视图有 ErrorBoundary 或等价降级。
 - [ ] 中英文词典同步；UI 文案不暴露内部实现术语。
@@ -844,6 +1019,8 @@ Slot shell
 - [ ] 网络慢、空数据、坏数据、旧 projection、请求失败和 retry。
 - [ ] `prefers-reduced-motion: reduce`。
 - [ ] 没有横向溢出、滚动跳闪、CLS、sticky 遮挡、浮层层级错误或 page error。
+- [ ] DSH 风格回归：默认 surface 是 flat/layered 而非独立品牌皮肤；普通 selected/hover 低噪声；唯一 primary action 清楚；状态色语义正确。
+- [ ] DSH 紧凑 chrome 回归：28–32px 视觉控件仍有可见 focus、键盘路径和足够命中区，settings 表单没有被过度压缩。
 
 ### 12.3 真实打包验收
 
@@ -861,7 +1038,39 @@ pnpm pack
 
 ---
 
-## 13. 最终质量门槛
+## 13. AI 开发提示词模板
+
+后续让 AI 开发 DSH 插件 UI 时，可以附加以下约束：
+
+```text
+你正在为 DeepSeek Harness Web 开发插件 UI。
+
+先确认：
+1. UI 挂载在哪个 DSH Slot，Slot contract 和 props 是什么；
+2. 当前宿主可用的 primitives、locale、theme tokens 和版本兼容性；
+3. 页面唯一任务、density、响应式容器和 primary action；
+4. 亮/暗主题下的 surface、text、border、state token 映射。
+
+实现要求：
+- 先输出 brief、ASCII wireframe、token mapping 和状态矩阵，再写 UI；
+- 优先使用 DSH 官方 primitives，CSS 只负责插件布局和专属内容；
+- 所有 class 使用插件前缀或 CSS Modules；不得修改宿主全局样式；
+- 所有颜色消费 --dsw-* / --ds-* token，按 brand/success/warn/error 语义分配；color-mix 只用于低强度 tint，并在 alias 边界提供 fallback；
+- 页面只有一个 primary action；页面级、卡片级、输入栏级控件按宿主上下文分别使用 primary/outline/quiet/borderless compact 表现；
+- 使用 font: inherit 或 DSH font token，数字使用 tabular figures；
+- 使用真实 button/form/label/input/details/dialog 语义；icon-only 控件必须有 aria-label；
+- loading/error/empty/readonly/disabled/success 都必须有可见和可恢复状态；异步状态行预留空间，避免布局跳动；
+- 支持键盘、focus-visible、Escape、reduced-motion 和窄容器；28–32px 仅是 composer/menu 的视觉紧凑例外，不得牺牲命中区；
+- 不用 emoji 作为图标，不用 placeholder 代替 label，不用 hover 作为唯一信息入口；
+- 保留异步旧数据和未保存 draft；不可信数据逐项解析，避免白屏；
+- 最后给出亮色、暗色、窄屏、键盘和真实 DSH Web 验收清单。
+
+不要复制参考插件的硬编码颜色、全局 DOM 耦合、emoji、hover-only tooltip、固定 100vh 或缺失焦点管理等缺陷。
+```
+
+---
+
+## 14. 最终质量门槛
 
 一个 DSH 插件 UI 只有同时满足以下条件才算完成：
 
