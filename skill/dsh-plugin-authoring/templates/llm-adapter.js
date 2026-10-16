@@ -20,7 +20,9 @@ class MyProviderAdapter extends LlmAdapter {
   }
 
   // listModels(), providerInfo(), providerRetryPolicy(), and prepareCall()
-  // already have rc.2 base implementations. Override only when needed.
+  // already have 0.2.0-rc.2 base implementations. Override only when needed.
+  // Preserve the adapter's authoritative optional capability list, including
+  // `off`, for reasoning effort; never invent unsupported defaults.
 }
 
 export const name = 'llm-my-provider'

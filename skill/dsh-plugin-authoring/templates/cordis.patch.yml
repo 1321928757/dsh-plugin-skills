@@ -1,6 +1,13 @@
 # Profile-bundle patch; the package must declare dsh.bundle.patch for this layer.
+# `dsh.bundle.patch` may be one path or an ORDERED array of paths; an array is
+# applied as a single layer in order, and relative plugin paths inside each file
+# resolve against that file.
+#
 # The top level is an array. Row order is configuration-layer order, not Service
 # activation order; Cordis/Loader dependency waiting controls activation.
+#
+# Rows reference plugins BY PACKAGE NAME (not relative source paths) so Node
+# module resolution finds the installed code.
 #
 # - insert:
 #     - id: my-plugin
@@ -12,7 +19,8 @@
 #     - id: my-plugin
 #       name: dsh-my-plugin
 #
-# Override an existing row (whole fields are replaced; no deep merge):
+# Override an existing row. A patch replaces the target row's ENTIRE config
+# value; there is no deep merge, so restate every key that row still needs:
 # - id: my-plugin
 #   name: dsh-my-plugin
 #   disabled: true

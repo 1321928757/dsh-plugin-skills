@@ -6,24 +6,41 @@
  * matching Host Service is provided under `myService` and that the manifest
  * exports ./typert with zod as a runtime dependency. Real generated output owns
  * every Zod codec, declaration, model member, lookup, and sourceLocation.
+ *
+ * DSH 0.2 contract: a strict codec carries a `create()` FACTORY. The 0.1.x
+ * `schema` field is gone. The loader rejects a codec without a `create`
+ * function ("... has no create() factory") and the gateway boundary validates
+ * with `codec.create().parse(value)`, so create() must return an object with a
+ * `parse` method. See ../references/typert-contract.md.
  */
 import { z } from 'zod'
 
-const argsCodec = {
+/*
+ * Generated output memoizes lazily so the schema is materialized on the first
+ * boundary use rather than at module evaluation time. Mirror that shape when
+ * hand-writing a fixture; do not hoist the z.object(...) call.
+ */
+let _ping_request$schema$value
+const _ping_request$schema = () => (_ping_request$schema$value ??= z.object({ message: z.string() }))
+
+let _ping_result$schema$value
+const _ping_result$schema = () => (_ping_result$schema$value ??= z.object({ reply: z.string() }))
+
+const requestCodec = {
   mode: 'strict',
-  typeSymbol: 'dsh-my-plugin/types#PingRequest',
-  schema: z.object({ message: z.string() }).strict(),
+  typeSymbol: 'dsh-my-plugin#myService/ping:request',
+  create: _ping_request$schema,
 }
 const resultCodec = {
   mode: 'strict',
-  typeSymbol: 'dsh-my-plugin/types#PingResult',
-  schema: z.object({ reply: z.string() }).strict(),
+  typeSymbol: 'dsh-my-plugin#myService/ping:result',
+  create: _ping_result$schema,
 }
 
 export const TYPERT = {
-  package: 'dsh-my-plugin',
-  face: 'host',
-  schemas: [],
+  package: 'dsh-my-plugin', // must equal package.json.name exactly
+  face: 'host',             // must be the literal 'host'
+  schemas: [],              // each entry would need { name, create }
   invocations: [
     {
       id: 'dsh-my-plugin#myService/ping',
@@ -32,14 +49,42 @@ export const TYPERT = {
       method: 'ping',
       invocation: { kind: 'direct' },
       parameters: [
-        { name: 'request', wire: 'request', source: 'json', codec: argsCodec },
+        { name: 'request', wire: 'request', source: 'json', codec: requestCodec },
       ],
       result: resultCodec,
       sourceLocation: { file: 'src/index.ts', line: 1, column: 1 },
       // For generated methods, cancellation/scope are emitted only when the
-      // source declaration requests them. Do not invent these fields.
+      // source declaration requests them. Do not invent these fields:
+      //   cancellation: { parameter: 'signal' }            // AbortSignal, out of band
+      //   scope: { context: 'agent', wire: 'agentId' }     // needs exactly one lookup parameter
     },
   ],
+  // Required object with three arrays. A malformed model block fails the whole
+  // typert-loader row, which disables RPC for every plugin in the profile.
+  model: {
+    services: [
+      {
+        key: 'myService',
+        exportName: 'MyService',
+        tags: [],
+        description: 'Example service.',
+        summary: 'Example service.',
+        jsDoc: '/** Example service. */',
+        members: [
+          {
+            kind: 'method', // one of property/method/getter/setter/call/construct/index
+            name: 'ping',
+            signature: 'ping(request): Promise<{ reply: string }>',
+            summary: 'Echo a message.',
+            jsDoc: '/** Echo a message. */',
+          },
+        ],
+        types: [],
+      },
+    ],
+    events: [],
+    objects: [],
+  },
 }
 
 export default TYPERT

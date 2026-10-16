@@ -30,8 +30,13 @@ if ($Source -eq 'npm') {
   $Spec = "$Package@$PluginVersion"
 } elseif ($Source -eq 'git') {
   if ($Owner -eq '<owner>' -or $Tag -eq '<plugin-tag>') { Fail 'Replace <owner> and <plugin-tag> before using git mode.' }
+  # A git install pulls SOURCE, not build output: no `build` script runs. The
+  # package must ship a self-contained `prepare`. pnpm >=10 refuses to run a git
+  # dependency's prepare until the package is listed in the profile's
+  # pnpm-workspace.yaml under `allowBuilds`; that grants arbitrary install-time
+  # code execution, so prefer a pinned commit SHA (or a prebuilt tarball).
   $Spec = "github:$Owner/$Repo#$Tag"
-  Info 'Git installs may run package build scripts; trust and pin the tag/commit.'
+  Info 'Git installs may be blocked by pnpm until allowBuilds is set; trust and pin the commit.'
 } else {
   if (-not (Test-Path $Tgz)) { Fail "Tarball not found beside this script: $Tgz" }
   $Spec = (Resolve-Path $Tgz).Path
@@ -56,4 +61,9 @@ Write-Host @"
   Verify layer: dsh --profile $Profile --dump-config
   Apply Web changes: restart the active dsh web process, then refresh the page.
   Remove: dsh plugin --profile $Profile remove $Package
+
+If dsh reports this plugin as incompatible with the runtime, check the
+@deepseek-ai/dsh* entries in peerDependencies first. Granting an exact-version
+exemption (profile compatibility.json, via the plugin manager) accepts a real
+risk of crashes or data loss; prefer installing a compatible plugin version.
 "@

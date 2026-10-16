@@ -1,6 +1,6 @@
 ---
 name: dsh-plugin-ui
-description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、审查或重构 DSH 插件的 settings.section、settings.plugin.item、conversation.view、sidebar、overlay、modal、数据面板和工作台界面，确保视觉风格、主题令牌、交互状态、响应式布局与 DSH Web UI 一致。
+description: DSH Web 插件 UI 设计与实现规范（目标版本 0.2.0-rc.2）。用于设计、实现、审查或重构 DSH 插件的 settings.section、settings.general.item、plugins.*、conversation.view、tool.call.toolview、conversation.input.*、sidebar、shell.overlay、modal、数据面板和工作台界面，确保视觉风格、主题令牌、交互状态、响应式布局与 DSH Web UI 一致。
 ---
 
 # DSH Plugin UI
@@ -11,21 +11,34 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 
 > 设计原则：先理解宿主，再表达插件；先建立层级，再添加装饰；先保证状态和可用性，再追求视觉亮点。
 
+> **目标版本：DSH `0.2.0-rc.2`。** 第 1.1 节的 Slot key、第 4.2 节的令牌说明和第 7.1 节的注册契约都按该版本的实际组合核对过。Slot、主题令牌和官方 primitives 会随组合变化，写代码前请用 `cordis_inspect_query` 复核，不要直接信任本文的清单。
+>
+> 第 2 节的参考实现（`dsh-notify-center`、`dsh-market`、`dsh-context`、`DSH-better-sidebar`）是**设计证据**，不是逐像素模板。这些项目各自的版本与目标 DSH 版本可能不同；引用其中的做法前，先确认它在当前运行时仍然成立。
+
 ---
 
 ## 1. 适用范围与不可违反的边界
 
 ### 1.1 适用的 UI 类型
 
-- 设置页独立分区：`settings.section`
-- 插件设置卡：`settings.plugin.item`
-- 会话视图或分析面板：`conversation.view`
-- 消息操作按钮：`conversation.chat.assistant-actions`
-- 输入栏按钮、浮层和命令面板：`conversation.input.*`
-- 壳层通知和 Toast：`shell.overlay`
-- better-sidebar 注册的 Tab、文件查看器、自由窗口和侧栏设置
-- 数据密集型 dashboard、列表、时间线、图表、诊断页
-- 设置、确认、预览、图片 lightbox、进度和错误反馈
+下表的 Slot key 是**当前 0.2.0-rc.2 Web 组合中实际存在**的入口，可用 `cordis_inspect_query({ platform: 'client', provider: 'Slots', method: 'listSubTree' })` 复核。key 会随组合变化，不要把它们当成跨版本的固定清单。
+
+| 用途 | 当前 key（0.2.0-rc.2） |
+| --- | --- |
+| 设置页独立分区 | `settings.section`（`list`） |
+| 通用设置单行偏好 | `settings.general.item`（`list`） |
+| 插件页标签页 | `settings.plugins.tab`（`list`） |
+| 插件页卡片/徽标/操作/分区 | `plugins.item`、`plugins.detail.badge`、`plugins.detail.actions`、`plugins.detail.section`（均 `list`） |
+| bundle 或 row 的配置面板 | `plugins.bundle.config`、`plugins.row.config`（`keyed`，key 为包名或 `<包名>#<row id>`） |
+| 会话视图或分析面板 | `conversation.view`（`list`，session scope） |
+| 助手消息操作按钮 | `conversation.chat.assistant-actions`（`list`） |
+| 工具调用专属卡片 | `tool.call.toolview`（`keyed`，key 为 wire 工具名） |
+| 输入栏按钮、浮层、停靠区 | `conversation.input.left` / `.right` / `.overlay`（`list`，工具行左右与卡内浮层）、`conversation.input.dock`（`list`，输入卡上方整行）、`conversation.composer.dock`（`list`，输入卡下方常驻区） |
+| 输入栏固定位置（单一占用） | `conversation.input.model`、`conversation.input.activity`、`conversation.input.permission`、`conversation.input.plan`、`conversation.input.attachments`（均 `single`，已有宿主实现占用，普通插件不要抢） |
+| 侧栏入口与面板 | `sidebar.panellist`（`list`）、`sidebar.footer.action`（`list`）、`sidebar.workspaces.session.row.action`（`list`） |
+| 壳层通知和 Toast | `shell.overlay`（`list`） |
+
+> 旧文档里的 `settings.plugin.item` 在 0.2.0-rc.2 **不存在**。插件页相关能力请使用上表的 `plugins.*` 系列。注册到未声明的 Slot，或重复声明他人已拥有的子 Slot，会在插件激活时直接失败。
 
 ### 1.2 运行形态
 
@@ -38,6 +51,8 @@ description: DSH Web 插件 UI 设计与实现规范。用于设计、实现、�
 | better-sidebar 消费插件 | 优先使用 `ctx.betterSidebar` 公开服务和注册表；不要 value-import better-sidebar 内部模块 |
 
 不要把 DSH Web 当作普通独立 React 应用。插件 UI 必须通过已声明的 Slot、官方 primitives 或公开服务挂载；不要自行启动另一个 Web 应用覆盖宿主页面。
+
+> **客户端半挂载在哪个 row 上。** client-modules 只在 specifier **恰好是裸包名**的那一行挂载包的浏览器半。用子路径 export 挂载的行不会有浏览器半，而且根行关闭时它注册的所有页面都会消失。需要独立生命周期的子插件应该发布成自己的包。
 
 ### 1.3 DSH-specific 红线
 
@@ -304,6 +319,8 @@ DSH host tokens  →  plugin semantic aliases  →  component state tokens
 ### 4.2 常用 DSH token 目录
 
 下面是参考插件反复消费的 token。它不是跨所有 DSH 版本的硬编码保证；实际开发前必须以当前运行时 Inspect 和宿主 CSS 为准。
+
+> **Inspect 的 `listTokens` 只返回「要求明暗各给一份」的 override 集合**（在 0.2.0-rc.2 上只有 14 个：`bg-base`、`bg-layer-1/2`、`bg-overlay`、`border-l1/l2`、`brand-primary`、`label-primary/secondary`、`state-error/idle/success/warn-primary`、`specific-sidebar-fill`），不是完整 alias 目录。要确认表中其它别名（`bg-layer-3`、`label-tertiary`、`interactive-bg-hover`、`shadow-lv*`、字体与 motion 令牌等）是否真实存在，请查宿主 CSS 或安装包的类型，不要因为 `listTokens` 没列出就断定它不存在，也不要反过来假定它一定存在。
 
 | 语义 | 优先 token |
 | --- | --- |
@@ -662,19 +679,27 @@ ctx.slots.inject('settings.section', () => ctx.slots.register({
   name: 'settings.section',
   id: 'my-plugin',
   order: 50,
-  locale: NS,
   label: () => t('nav'),
-  inject: () => ({ /* only small runtime faces */ }),
 }, MySettingsSection))
 ```
 
 注意：
 
-- Slot 名、kind、必填字段和 props 先查运行时；不要凭参考代码猜。
-- list slot 使用稳定 `id` 和明确 `order`；keyed slot 使用正确 `key`；chain slot 必须提供选择器和 priority 语义。
+- Slot 名、kind、必填字段和 props 先查运行时；不要凭参考代码猜。最省的核对方式：
+
+  ```text
+  cordis_inspect_query({ platform: 'client', provider: 'Slots', method: 'listSubTree' })
+  cordis_inspect_query({ platform: 'client', provider: 'Slots', method: 'listSubTree', input: { root: 'settings.section' } })
+  ```
+
+  后者会返回该 Slot 自己的 catalog 与当前 occupants（谁已经注册了）。**注册到未声明的 key，或重复声明他人已拥有的子 Slot，会在插件激活时失败**——而 client 半区的激活失败会让整个 Web 启动失败，逐条报错原文见 [`../dsh-plugin-authoring/references/boot-and-activation.md`](../dsh-plugin-authoring/references/boot-and-activation.md) §5。
+- 选择字段由 Slot 的 **kind** 决定：`list` → `id`（必填）+ 可选 `order`/`label`；`keyed` → `key`；`chain` → `select`；`single` 是供填充的洞，无需选择字段。
+- `priority` 对 `single`/`list`/`keyed` 是遮蔽优先级，对 `chain` 是竞选顺序；**数值越小越先渲染/执行**。
+- 组件**不会**收到 `ctx`；它拿到的是该 scope 的标准 props（`sessionId`、`useSession`、`useProjection`、`useConversation`、`useInput`、`inputActions`、`useChat`，`session-maybe` 则是对应的可选结果版本）。不要试图从 props 里取插件实例或 Service。
 - Slot 的 render component 不应依赖被随意复制的 live host object。
-- settings plugin card 属于 root-scope keyed slot；session UI 需要使用宿主规定的 session props。
 - 可选宿主能力使用 nested injection，让主页面在旧宿主上优雅降级，不要因可选 settings service 缺失而让整个插件消失。
+
+`locale` 与 `inject` 只在**该 Slot 的 owner 声明了对应 face 时**才有效；Inspect 返回的 `registration` 块列出的是选择字段，不代表这些可选 face 不存在。不确定时以该 Slot 的声明为准。
 
 动态插件客户端应遵守：
 
@@ -733,6 +758,16 @@ Slot shell
 ```
 
 错误卡必须包含：人能读懂的原因、当前影响、retry 或返回路径。不要只渲染技术 stack，也不要让错误直接冒泡到宿主 conversation renderer。
+
+### 7.5 作用域与会话身份
+
+只有 **session / session-maybe 作用域**的 Slot 才拿得到 `sessionId`（例如 `conversation.input.left`）。`main`、`sidebar`、`rightbar` 等是 `scope: 'root'`，**没有任何官方途径拿到「当前会话」**：`ctx.sessions`（`ISessions`）暴露的是 `retain`、`using`、`retainInfo`、`refreshProjections`、`search`、`fork`、`scope(id)`、`binding(id)`——**每一个都要求显式传入 `SessionId`，没有 current/active 之类的访问器**。由此：
+
+- 需要「对当前会话生效」的动作（授权、会话级绑定、按会话开关）只能放在 session 作用域席位；根作用域面板不要猜 session——多字段猜测、默认 sessionId、回退第一个会话都是禁止项。
+- 根作用域容器通常已经提供了 session 作用域的子洞。例如 `rightbar` 本身是 root scope，但它声明了 `scope: 'session'` 的子 Slot `rightbar.session`——右栏想按会话渲染内容，应该注册到那个子洞，而不是在 root 层猜。选位置前先看 Slot 子树里的 `scope` 字段。
+- 根作用域面板做只读展示、或引导用户去输入栏操作，比「猜一个会话」安全得多，也更符合宿主的心智模型。
+- 需要「对当前会话生效」的能力如果拿不到可信绑定，就把状态显式化成三态：**未绑定**（禁用 + 原因文案）、**已绑定**（可写）、**未知/失效**（提示重新打开会话或重试）。禁用必须给出人能读懂的原因，不要让按钮「看起来能点但没反应」。
+- 授权类控件要把「库存列表」与「已授权集合」分开：列表来自宿主配置，始终可读；写操作必须等可信绑定就绪后才放开，失败时不得把待授权项乐观标记为已授权。
 
 ---
 

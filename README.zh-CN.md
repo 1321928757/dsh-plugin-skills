@@ -10,6 +10,8 @@
 
 本仓库提供的是面向 Agent 的指导型 skill，而不是一个可以直接运行的 DSH 插件。每个 skill 都围绕一个明确职责，提供工作流程、实现约束、可复用模板和验收建议。
 
+> **目标版本：DSH `0.2.0-rc.2`。** 0.1.x → 0.2 的破坏性改动清单见[「范围与兼容性」](#范围与兼容性)。
+
 三个 skill 按插件交付过程组织：
 
 ```text
@@ -87,13 +89,26 @@ Copy-Item .\skill\dsh-plugin-ui (Join-Path $DshSkills 'dsh-plugin-ui') -Recurse 
     ├── dsh-plugin-authoring/
     │   ├── SKILL.md
     │   ├── references/
-    │   │   └── publish-runbook.md
+    │   │   ├── boot-and-activation.md
+    │   │   ├── client-module-contract.md
+    │   │   ├── event-matrix.md
+    │   │   ├── evidence-matrix.md
+    │   │   ├── llm-adapter-guide.md
+    │   │   ├── publish-runbook.md
+    │   │   ├── testing-strategy.md
+    │   │   ├── tool-contract.md
+    │   │   └── typert-contract.md
     │   └── templates/
     │       ├── client.js
     │       ├── cordis.patch.yml
     │       ├── install.ps1
-    │       ├── package.json
-    │       └── typert.host.js
+    │       ├── llm-adapter.js
+    │       ├── package*.json
+    │       ├── tests/
+    │       ├── tool.js
+    │       ├── typert.host-service.js
+    │       ├── typert.host.js
+    │       └── typert.remote-client.js
     ├── dsh-plugin-readme/
     │   └── SKILL.md
     └── dsh-plugin-ui/
@@ -114,6 +129,20 @@ Copy-Item .\skill\dsh-plugin-ui (Join-Path $DshSkills 'dsh-plugin-ui') -Recurse 
 ## 范围与兼容性
 
 这些 skill 是开发指导，不能替代当前 DSH 运行时契约或目标插件的测试。示例中的包名、路径、版本号和仓库 owner 可能是占位符，使用前请替换为已验证的实际值。
+
+**目标版本：DSH `0.2.0-rc.2`。** authoring skill 已从 `0.1.1-rc.2` 迁移到 0.2 契约，并记录会让旧插件失效的改动：
+
+| 改动 | 影响 |
+| --- | --- |
+| Typert strict codec 的 `schema` 改为 `create()` factory | 旧形态的生成产物或手写产物会在加载阶段失败，并且会连带让该 profile 里所有插件的 RPC 路由一起不可用 |
+| `@deepseek-ai/dsh*` 的 `peerDependencies` 变成强制的兼容性 gate | 旧的 peer 区间会在安装/启动时被拒绝；唯一覆盖方式是需要显式确认风险的精确版本豁免 |
+| `tools/code-dispatch-log` → `tools/ptc-dispatch-log` | 旧监听器名字是静默失效，不会报错 |
+| Client bundle 改为 combo 路由；`rev` 来自文件 metadata；boot graph 增加 `batches` | 不要再依赖 0.1.x 的每插件 URL 形状，也不要依赖内容 hash 缓存语义 |
+| 插件页 Slot 改名（`plugins.item`、`plugins.detail.*` 等） | Web 组合中已不存在 `settings.plugin.item` |
+
+官方文档路径已迁到 `/reference/…`，若干旧链接现在返回 404。authoring skill 的 evidence matrix 逐条标明哪些结论来自官方文档、哪些来自 tag 化的源码、哪些来自本机运行时，并列出未能验证的部分。
+
+在这个版本上请把 `engines.dsh` 当作声明性字段：它表达作者意图并被工具读取，但真正强制的是 `@deepseek-ai/dsh*` 的 peer 区间。
 
 当前内容主要聚焦 DSH Web/profile bundle 插件。未来如果某个测试、调试、安全审查或其他方向具备清晰边界和可复用指导，可以继续添加新的 skill。
 

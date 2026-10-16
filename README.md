@@ -10,6 +10,8 @@ A community-maintained collection of reusable skills for building, designing, do
 
 This repository contains instruction-oriented skills rather than an executable DSH plugin. Each skill gives an agent a focused workflow, implementation constraints, reusable templates, and validation guidance.
 
+> **Target version: DSH `0.2.0-rc.2`.** See [Scope and compatibility](#scope-and-compatibility) for the 0.1.x → 0.2 changes the authoring skill now documents.
+
 The collection follows a plugin's practical delivery path:
 
 ```text
@@ -87,13 +89,26 @@ After copying, invoke the skill by its directory name in an Agent environment th
     ├── dsh-plugin-authoring/
     │   ├── SKILL.md
     │   ├── references/
-    │   │   └── publish-runbook.md
+    │   │   ├── boot-and-activation.md
+    │   │   ├── client-module-contract.md
+    │   │   ├── event-matrix.md
+    │   │   ├── evidence-matrix.md
+    │   │   ├── llm-adapter-guide.md
+    │   │   ├── publish-runbook.md
+    │   │   ├── testing-strategy.md
+    │   │   ├── tool-contract.md
+    │   │   └── typert-contract.md
     │   └── templates/
     │       ├── client.js
     │       ├── cordis.patch.yml
     │       ├── install.ps1
-    │       ├── package.json
-    │       └── typert.host.js
+    │       ├── llm-adapter.js
+    │       ├── package*.json
+    │       ├── tests/
+    │       ├── tool.js
+    │       ├── typert.host-service.js
+    │       ├── typert.host.js
+    │       └── typert.remote-client.js
     ├── dsh-plugin-readme/
     │   └── SKILL.md
     └── dsh-plugin-ui/
@@ -114,6 +129,20 @@ After copying, invoke the skill by its directory name in an Agent environment th
 ## Scope and compatibility
 
 These skills are guidance, not a substitute for the current DSH runtime contract or the target plugin's tests. Examples may contain placeholder package names, paths, versions, and repository owners; replace them with values verified for your project.
+
+**Target version: DSH `0.2.0-rc.2`.** The authoring skill was retargeted from `0.1.1-rc.2` and now documents the 0.2 contracts, including the changes that break older plugins:
+
+| Change | Impact |
+| --- | --- |
+| Typert strict codec `schema` → `create()` factory | A generated or hand-written `./typert` artifact in the old shape fails at load and takes every RPC route in the profile down with it |
+| `@deepseek-ai/dsh*` `peerDependencies` became an enforced compatibility gate | An old peer range is now refused at install/start, with an explicit risk-accepting exemption as the only override |
+| `tools/code-dispatch-log` → `tools/ptc-dispatch-log` | A stale listener name is silent rather than loud |
+| Client bundles served as combo routes; `rev` derived from file metadata; boot graph gained `batches` | Do not depend on the 0.1.x per-plugin URL shape or on content-hash caching |
+| Plugin-page slots renamed (`plugins.item`, `plugins.detail.*`, …) | `settings.plugin.item` no longer exists in the Web composition |
+
+Official documentation moved under `/reference/…`; several older link paths now 404. The evidence matrix in the authoring skill records exactly which claims were verified against official docs, which against tag-pinned source, and which against the installed runtime — and lists what could not be verified.
+
+Treat `engines.dsh` as declarative at this version: it expresses intent and is read by tooling, but the enforced check is the `@deepseek-ai/dsh*` peer range.
 
 The skills currently focus on DSH Web/profile-bundle plugin work. A future skill can be added for testing, debugging, security review, or other areas when it has a clear scope and reusable guidance.
 

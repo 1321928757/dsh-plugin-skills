@@ -1,6 +1,15 @@
 /**
- * Tool template. The package build may keep this as ESM source or compile it;
- * the runtime contract is the same in DSH 0.1.1-rc.2.
+ * Tool template for DSH 0.2.0-rc.2.
+ *
+ * The package build may keep this as ESM source or compile it; the runtime
+ * contract is the same. Key points shown here:
+ *   - `parameters` is an implicit OPEN object root; each property may carry
+ *     `required: true`.
+ *   - Any EXPLICIT object node must declare a boolean `additionalProperties`.
+ *   - `execute` returns only the canonical value declared by `output.schema`.
+ *   - presentCall/presentResult are pure replay-safe projections. They existed
+ *     before 0.2 and are NOT consumed by the built-in Web client; a dedicated
+ *     conversation card needs a client plugin registered on `tool.call.toolview`.
  */
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
@@ -12,7 +21,7 @@ export function apply(ctx) {
     name: 'read_status',
     description: 'Read the plugin status.',
     parameters: {
-      verbose: { type: 'boolean' },
+      verbose: { type: 'boolean', description: 'Include extra detail.' },
     },
     output: {
       schema: {
@@ -22,7 +31,7 @@ export function apply(ctx) {
           details: { type: 'string' },
         },
         required: ['status'],
-        additionalProperties: false,
+        additionalProperties: false, // required on an explicit object node
       },
       render: (_args, value) => [{
         type: 'text',
@@ -30,13 +39,14 @@ export function apply(ctx) {
       }],
       presentationMeta: (_args, value) => ({ status: value.status }),
     },
-    async execute(_args, exec) {
+    timeoutMs: 30_000,
+    async execute(args, exec) {
       exec.signal.throwIfAborted?.()
-      return { status: 'ready' }
+      return { status: 'ready', ...(args.verbose ? { details: 'verbose mode' } : {}) }
     },
     presentCall: (args) => ({ card: 'generic', title: 'Read plugin status', rawInput: args }),
     // This output has no isError field; keep the projection independent of
-  // undocumented execution-result properties.
-  presentResult: () => ({ card: 'generic', title: 'Status' }),
+    // undocumented execution-result properties.
+    presentResult: () => ({ card: 'generic', title: 'Status' }),
   }))
 }
